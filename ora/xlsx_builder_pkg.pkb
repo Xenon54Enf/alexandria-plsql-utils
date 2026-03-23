@@ -1868,6 +1868,48 @@ style="position:absolute;margin-left:35.25pt;margin-top:3pt;z-index:' || to_char
     blob2file( finish, p_directory, p_filename );
   end;
 --
+  function calc_excel_width
+    ( p_value varchar2
+    , p_padding pls_integer := 1
+    , p_min_width number := 8.43
+    , p_max_width number := 80
+    )
+  return number
+  is
+    t_value varchar2(32767 char) := replace( replace( p_value, chr(13) || chr(10), chr(10) ), chr(13), chr(10) );
+    t_pos pls_integer := 1;
+    t_lf pls_integer;
+    t_len pls_integer;
+    t_max_len pls_integer := 0;
+    t_width number;
+  begin
+    if t_value is null
+    then
+      return null;
+    end if;
+
+    loop
+      t_lf := instr( t_value, chr(10), t_pos );
+      if t_lf = 0
+      then
+        t_len := length( substr( t_value, t_pos ) );
+        t_max_len := greatest( t_max_len, nvl( t_len, 0 ) );
+        exit;
+      else
+        t_len := length( substr( t_value, t_pos, t_lf - t_pos ) );
+        t_max_len := greatest( t_max_len, nvl( t_len, 0 ) );
+        t_pos := t_lf + 1;
+      end if;
+    end loop;
+
+    t_max_len := t_max_len + nvl( p_padding, 0 );
+    t_width := trunc( ((( t_max_len * 7 ) + 5 ) / 7 ) * 256 ) / 256;
+
+    return least( nvl( p_max_width, t_width )
+                , greatest( nvl( p_min_width, t_width ), t_width )
+                );
+  end;
+--
   procedure query2sheet
     ( p_sql varchar2
     , p_column_headers boolean := true
@@ -1886,6 +1928,29 @@ style="position:absolute;margin-left:35.25pt;margin-top:3pt;z-index:' || to_char
     t_bulk_size pls_integer := 200;
     t_r integer;
     t_cur_row pls_integer;
+
+    type tp_query_widths is table of number index by pls_integer;
+    t_widths tp_query_widths;
+
+    procedure update_col_width
+      ( p_col pls_integer
+      , p_display_value varchar2
+      )
+    is
+      t_width number;
+      t_current_width number := 0;
+    begin
+      t_width := calc_excel_width( p_display_value );
+      if t_width is not null
+      then
+        if t_widths.exists( p_col )
+        then
+          t_current_width := t_widths( p_col );
+        end if;
+        t_widths( p_col ) := greatest( t_current_width, t_width );
+      end if;
+    end;
+
   begin
     if p_sheet is null
     then
@@ -1899,6 +1964,7 @@ style="position:absolute;margin-left:35.25pt;margin-top:3pt;z-index:' || to_char
       if p_column_headers
       then
         cell( c, 1, t_desc_tab( c ).col_name, p_sheet => t_sheet );
+        update_col_width( c, t_desc_tab( c ).col_name );
       end if;
 --      dbms_output.put_line( t_desc_tab( c ).col_name || ' ' || t_desc_tab( c ).col_type );
       case
@@ -1935,6 +2001,12 @@ style="position:absolute;margin-left:35.25pt;margin-top:3pt;z-index:' || to_char
                 if n_tab( i + n_tab.first() ) is not null
                 then
                   cell( c, t_cur_row + i, n_tab( i + n_tab.first() ), p_sheet => t_sheet );
+                  update_col_width( c
+                                  , to_char( n_tab( i + n_tab.first() )
+                                           , 'TM9'
+                                           , 'NLS_NUMERIC_CHARACTERS=.,'
+                                           )
+                                  );
                 end if;
               end loop;
               n_tab.delete;
@@ -1946,6 +2018,7 @@ style="position:absolute;margin-left:35.25pt;margin-top:3pt;z-index:' || to_char
                 if d_tab( i + d_tab.first() ) is not null
                 then
                   cell( c, t_cur_row + i, d_tab( i + d_tab.first() ), p_sheet => t_sheet );
+                  update_col_width( c, to_char( d_tab( i + d_tab.first() ), 'dd/mm/yyyy' ) );
                 end if;
               end loop;
               d_tab.delete;
@@ -1957,6 +2030,7 @@ style="position:absolute;margin-left:35.25pt;margin-top:3pt;z-index:' || to_char
                 if v_tab( i + v_tab.first() ) is not null
                 then
                   cell( c, t_cur_row + i, v_tab( i + v_tab.first() ), p_sheet => t_sheet );
+                  update_col_width( c, v_tab( i + v_tab.first() ) );
                 end if;
               end loop;
               v_tab.delete;
