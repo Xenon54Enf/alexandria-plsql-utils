@@ -106,7 +106,7 @@ as
   type tp_borders is table of tp_border index by pls_integer;
   type tp_numFmtIndexes is table of pls_integer index by pls_integer;
   type tp_strings is table of pls_integer index by varchar2(32767 char);
-  type tp_str_ind is table of varchar2(32767 char) index by pls_integer;
+  type tp_str_ind is table of clob index by pls_integer;
   type tp_defined_name is record
     ( name varchar2(32767 char)
     , ref varchar2(32767 char)
@@ -189,7 +189,7 @@ as
     t_name raw(32767);
   begin
     t_now := sysdate;
-    t_len := nvl( dbms_lob.getlength( p_content ), 0 );
+    t_len := coalesce( dbms_lob.getlength( p_content ), 0 );
     if t_len > 0
     then 
       t_blob := utl_compress.lz_compress( p_content );
@@ -301,7 +301,7 @@ as
                                    , little_endian( t_cnt, 2 )                                 -- Total number of central directory records
                                    , little_endian( t_offs_end_header - t_offs_dir_header )    -- Size of central directory
                                    , little_endian( t_offs_dir_header )                        -- Offset of start of central directory, relative to start of archive
-                                   , little_endian( nvl( utl_raw.length( t_comment ), 0 ), 2 ) -- ZIP file comment length
+                                   , little_endian( coalesce( utl_raw.length( t_comment ), 0 ), 2 ) -- ZIP file comment length
                                    , t_comment
                                    )
                    );
@@ -323,8 +323,8 @@ as
   is
   begin
     return ascii( substr( p_col, -1 ) ) - 64
-         + nvl( ( ascii( substr( p_col, -2, 1 ) ) - 64 ) * 26, 0 )
-         + nvl( ( ascii( substr( p_col, -3, 1 ) ) - 64 ) * 676, 0 );
+         + coalesce( ( ascii( substr( p_col, -2, 1 ) ) - 64 ) * 26, 0 )
+         + coalesce( ( ascii( substr( p_col, -3, 1 ) ) - 64 ) * 676, 0 );
   end;
 --
   procedure clear_workbook
@@ -365,7 +365,7 @@ as
     t_nr pls_integer := workbook.sheets.count() + 1;
     t_ind pls_integer;
   begin
-    workbook.sheets( t_nr ).name := nvl( dbms_xmlgen.convert( translate( p_sheetname, 'a/\[]*:?', 'a' ) ), 'Sheet' || t_nr );
+    workbook.sheets( t_nr ).name := coalesce( dbms_xmlgen.convert( translate( p_sheetname, 'a/\[]*:?', 'a' ) ), 'Sheet' || t_nr );
     if workbook.strings.count() = 0
     then
      workbook.str_cnt := 0;
@@ -522,7 +522,7 @@ as
       for f in 0 .. workbook.fills.count() - 1
       loop
         if (   workbook.fills( f ).patternType = p_patternType
-           and nvl( workbook.fills( f ).fgRGB, 'x' ) = nvl( upper( p_fgRGB ), 'x' )
+           and coalesce( workbook.fills( f ).fgRGB, 'x' ) = coalesce( upper( p_fgRGB ), 'x' )
            )
         then
           return f;
@@ -549,10 +549,10 @@ as
     then
       for b in 0 .. workbook.borders.count() - 1
       loop
-        if (   nvl( workbook.borders( b ).top, 'x' ) = nvl( p_top, 'x' )
-           and nvl( workbook.borders( b ).bottom, 'x' ) = nvl( p_bottom, 'x' )
-           and nvl( workbook.borders( b ).left, 'x' ) = nvl( p_left, 'x' )
-           and nvl( workbook.borders( b ).right, 'x' ) = nvl( p_right, 'x' )
+        if (   coalesce( workbook.borders( b ).top, 'x' ) = coalesce( p_top, 'x' )
+           and coalesce( workbook.borders( b ).bottom, 'x' ) = coalesce( p_bottom, 'x' )
+           and coalesce( workbook.borders( b ).left, 'x' ) = coalesce( p_left, 'x' )
+           and coalesce( workbook.borders( b ).right, 'x' ) = coalesce( p_right, 'x' )
            )
         then
           return b;
@@ -616,7 +616,7 @@ as
     if (   t_XF.numFmtId + t_XF.fontId + t_XF.fillId + t_XF.borderId = 0
        and t_XF.alignment.vertical is null
        and t_XF.alignment.horizontal is null
-       and not nvl( t_XF.alignment.wrapText, false )
+       and not coalesce( t_XF.alignment.wrapText, false )
        )
     then
       return '';
@@ -632,9 +632,9 @@ as
          and workbook.cellXfs( i ).fontId = t_XF.fontId
          and workbook.cellXfs( i ).fillId = t_XF.fillId
          and workbook.cellXfs( i ).borderId = t_XF.borderId
-         and nvl( workbook.cellXfs( i ).alignment.vertical, 'x' ) = nvl( t_XF.alignment.vertical, 'x' )
-         and nvl( workbook.cellXfs( i ).alignment.horizontal, 'x' ) = nvl( t_XF.alignment.horizontal, 'x' )
-         and nvl( workbook.cellXfs( i ).alignment.wrapText, false ) = nvl( t_XF.alignment.wrapText, false )
+         and coalesce( workbook.cellXfs( i ).alignment.vertical, 'x' ) = coalesce( t_XF.alignment.vertical, 'x' )
+         and coalesce( workbook.cellXfs( i ).alignment.horizontal, 'x' ) = coalesce( t_XF.alignment.horizontal, 'x' )
+         and coalesce( workbook.cellXfs( i ).alignment.wrapText, false ) = coalesce( t_XF.alignment.wrapText, false )
          )
       then
         t_XfId := i;
@@ -662,7 +662,7 @@ as
     , p_sheet pls_integer := null
     )
   is
-    t_sheet pls_integer := nvl( p_sheet, workbook.sheets.count() );
+    t_sheet pls_integer := coalesce( p_sheet, workbook.sheets.count() );
   begin
     if p_value is not null
     then
@@ -686,7 +686,7 @@ as
     else
       t_cnt := workbook.strings.count();  
       workbook.str_ind( t_cnt ) := p_string;
-      workbook.strings( nvl( p_string, '' ) ) := t_cnt;
+      workbook.strings( coalesce( p_string, '' ) ) := t_cnt;
     end if;
     workbook.str_cnt := workbook.str_cnt + 1;
     return t_cnt;
@@ -717,7 +717,7 @@ as
     , p_sheet pls_integer := null
     )
   is
-    t_sheet pls_integer := nvl( p_sheet, workbook.sheets.count() );
+    t_sheet pls_integer := coalesce( p_sheet, workbook.sheets.count() );
     t_alignment tp_alignment := p_alignment;
   begin
     if p_value is not null 
@@ -747,7 +747,7 @@ as
     )
   is
     t_numFmtId pls_integer := p_numFmtId;
-    t_sheet pls_integer := nvl( p_sheet, workbook.sheets.count() );
+    t_sheet pls_integer := coalesce( p_sheet, workbook.sheets.count() );
   begin
     workbook.sheets( t_sheet ).rows( p_row )( p_col ).value := p_value - to_date('01-01-1904','DD-MM-YYYY');
     if t_numFmtId is null
@@ -772,11 +772,11 @@ as
     )
   is
     t_ind pls_integer;
-    t_sheet pls_integer := nvl( p_sheet, workbook.sheets.count() );
+    t_sheet pls_integer := coalesce( p_sheet, workbook.sheets.count() );
   begin
-    if nvl( p_value, p_url ) is not null
+    if coalesce( p_value, p_url ) is not null
     then
-      workbook.sheets( t_sheet ).rows( p_row )( p_col ).value := add_string( clean_string( nvl( p_value, p_url )));
+      workbook.sheets( t_sheet ).rows( p_row )( p_col ).value := add_string( clean_string( coalesce( p_value, p_url )));
       workbook.sheets( t_sheet ).rows( p_row )( p_col ).style := 't="s" ' || get_XfId( t_sheet, p_col, p_row, '', get_font( 'Calibri', p_theme => 10, p_underline => true ) );
       t_ind := workbook.sheets( t_sheet ).hyperlinks.count() + 1;
       workbook.sheets( t_sheet ).hyperlinks( t_ind ).cell := alfan_col( p_col ) || p_row;
@@ -798,7 +798,7 @@ as
     )
   is
     t_ind pls_integer;
-    t_sheet pls_integer := nvl( p_sheet, workbook.sheets.count() );
+    t_sheet pls_integer := coalesce( p_sheet, workbook.sheets.count() );
   begin
     t_ind := workbook.sheets( t_sheet ).comments.count() + 1;
     workbook.sheets( t_sheet ).comments( t_ind ).row := p_row;
@@ -818,7 +818,7 @@ as
     )
   is
     t_ind pls_integer;
-    t_sheet pls_integer := nvl( p_sheet, workbook.sheets.count() );
+    t_sheet pls_integer := coalesce( p_sheet, workbook.sheets.count() );
   begin
     t_ind := workbook.sheets( t_sheet ).mergecells.count() + 1;
     workbook.sheets( t_sheet ).mergecells( t_ind ) := alfan_col( p_tl_col ) || p_tl_row || ':' || alfan_col( p_br_col ) || p_br_row;
@@ -839,7 +839,7 @@ as
     )
   is
     t_ind pls_integer;
-    t_sheet pls_integer := nvl( p_sheet, workbook.sheets.count() );
+    t_sheet pls_integer := coalesce( p_sheet, workbook.sheets.count() );
   begin
     t_ind := workbook.sheets( t_sheet ).validations.count() + 1;
     workbook.sheets( t_sheet ).validations( t_ind ).type := p_type;
@@ -921,7 +921,7 @@ as
     )
   is
     t_ind pls_integer;
-    t_sheet pls_integer := nvl( p_sheet, workbook.sheets.count() );
+    t_sheet pls_integer := coalesce( p_sheet, workbook.sheets.count() );
   begin
     t_ind := workbook.defined_names.count() + 1;
     workbook.defined_names( t_ind ).name := p_name;
@@ -936,7 +936,7 @@ as
     )
   is
   begin
-    workbook.sheets( nvl( p_sheet, workbook.sheets.count() ) ).widths( p_col ) := p_width;
+    workbook.sheets( coalesce( p_sheet, workbook.sheets.count() ) ).widths( p_col ) := p_width;
   end;
 --
   procedure set_column
@@ -949,7 +949,7 @@ as
     , p_sheet pls_integer := null
     )
   is
-    t_sheet pls_integer := nvl( p_sheet, workbook.sheets.count() );
+    t_sheet pls_integer := coalesce( p_sheet, workbook.sheets.count() );
   begin
     workbook.sheets( t_sheet ).col_fmts( p_col ).numFmtId := p_numFmtId;
     workbook.sheets( t_sheet ).col_fmts( p_col ).fontId := p_fontId;
@@ -968,7 +968,7 @@ as
     , p_sheet pls_integer := null
     )
   is
-    t_sheet pls_integer := nvl( p_sheet, workbook.sheets.count() );
+    t_sheet pls_integer := coalesce( p_sheet, workbook.sheets.count() );
   begin
     workbook.sheets( t_sheet ).row_fmts( p_row ).numFmtId := p_numFmtId;
     workbook.sheets( t_sheet ).row_fmts( p_row ).fontId := p_fontId;
@@ -982,7 +982,7 @@ as
     , p_sheet pls_integer := null
     )
   is
-    t_sheet pls_integer := nvl( p_sheet, workbook.sheets.count() );
+    t_sheet pls_integer := coalesce( p_sheet, workbook.sheets.count() );
   begin
     workbook.sheets( t_sheet ).freeze_cols := null;
     workbook.sheets( t_sheet ).freeze_rows := p_nr_rows;
@@ -993,7 +993,7 @@ as
     , p_sheet pls_integer := null
     )
   is
-    t_sheet pls_integer := nvl( p_sheet, workbook.sheets.count() );
+    t_sheet pls_integer := coalesce( p_sheet, workbook.sheets.count() );
   begin
     workbook.sheets( t_sheet ).freeze_rows := null;
     workbook.sheets( t_sheet ).freeze_cols := p_nr_cols;
@@ -1005,7 +1005,7 @@ as
     , p_sheet pls_integer := null
     )
   is
-    t_sheet pls_integer := nvl( p_sheet, workbook.sheets.count() );
+    t_sheet pls_integer := coalesce( p_sheet, workbook.sheets.count() );
   begin
     workbook.sheets( t_sheet ).freeze_rows := p_row;
     workbook.sheets( t_sheet ).freeze_cols := p_col;
@@ -1020,7 +1020,7 @@ as
     )
   is
     t_ind pls_integer;
-    t_sheet pls_integer := nvl( p_sheet, workbook.sheets.count() );
+    t_sheet pls_integer := coalesce( p_sheet, workbook.sheets.count() );
   begin
     t_ind := 1;
     workbook.sheets( t_sheet ).autofilters( t_ind ).column_start := p_column_start;
@@ -1092,7 +1092,7 @@ as
     t_excel blob;
     t_xxx clob;
     t_tmp varchar2(32767 char);
-    t_str varchar2(32767 char);
+    t_str clob;
     t_c number;
     t_h number;
     t_w number;
@@ -1654,10 +1654,10 @@ ts timestamp := systimestamp;
       for a in 1 ..  workbook.sheets( s ).autofilters.count()
       loop
         t_xxx := t_xxx || '<autoFilter ref="' ||
-            alfan_col( nvl( workbook.sheets( s ).autofilters( a ).column_start, t_col_min ) ) ||
-            to_char( nvl( workbook.sheets( s ).autofilters( a ).row_start, workbook.sheets( s ).rows.first() )) || ':' ||
+            alfan_col( coalesce( workbook.sheets( s ).autofilters( a ).column_start, t_col_min ) ) ||
+            to_char( coalesce( workbook.sheets( s ).autofilters( a ).row_start, workbook.sheets( s ).rows.first() )) || ':' ||
             alfan_col( coalesce( workbook.sheets( s ).autofilters( a ).column_end, workbook.sheets( s ).autofilters( a ).column_start, t_col_max ) ) ||
-            to_char( nvl( workbook.sheets( s ).autofilters( a ).row_end, workbook.sheets( s ).rows.last() )) || '"/>';
+            to_char( coalesce( workbook.sheets( s ).autofilters( a ).row_end, workbook.sheets( s ).rows.last() )) || '"/>';
       end loop;
       if workbook.sheets( s ).mergecells.count() > 0
       then
@@ -1677,7 +1677,7 @@ ts timestamp := systimestamp;
           t_xxx := t_xxx || '<dataValidation' ||
               ' type="' || workbook.sheets( s ).validations( m ).type || '"' ||
               ' errorStyle="' || workbook.sheets( s ).validations( m ).errorstyle || '"' ||
-              ' allowBlank="' || case when nvl( workbook.sheets( s ).validations( m ).allowBlank, true ) then '1' else '0' end || '"' ||
+              ' allowBlank="' || case when coalesce( workbook.sheets( s ).validations( m ).allowBlank, true ) then '1' else '0' end || '"' ||
               ' sqref="' || workbook.sheets( s ).validations( m ).sqref || '"';
           if workbook.sheets( s ).validations( m ).prompt is not null
           then
@@ -1893,20 +1893,20 @@ style="position:absolute;margin-left:35.25pt;margin-top:3pt;z-index:' || to_char
       if t_lf = 0
       then
         t_len := length( substr( t_value, t_pos ) );
-        t_max_len := greatest( t_max_len, nvl( t_len, 0 ) );
+        t_max_len := greatest( t_max_len, coalesce( t_len, 0 ) );
         exit;
       else
         t_len := length( substr( t_value, t_pos, t_lf - t_pos ) );
-        t_max_len := greatest( t_max_len, nvl( t_len, 0 ) );
+        t_max_len := greatest( t_max_len, coalesce( t_len, 0 ) );
         t_pos := t_lf + 1;
       end if;
     end loop;
 
-    t_max_len := t_max_len + nvl( p_padding, 0 );
+    t_max_len := t_max_len + coalesce( p_padding, 0 );
     t_width := trunc( ((( t_max_len * 7 ) + 5 ) / 7 ) * 256 ) / 256;
 
-    return least( nvl( p_max_width, t_width )
-                , greatest( nvl( p_min_width, t_width ), t_width )
+    return least( coalesce( p_max_width, t_width )
+                , greatest( coalesce( p_min_width, t_width ), t_width )
                 );
   end;
 --
@@ -1983,7 +1983,7 @@ style="position:absolute;margin-left:35.25pt;margin-top:3pt;z-index:' || to_char
     end loop;
 --
     t_cur_row := case when p_column_headers then 2 else 1 end;
-    t_sheet := nvl( p_sheet, workbook.sheets.count() );
+    t_sheet := coalesce( p_sheet, workbook.sheets.count() );
 --
     t_r := dbms_sql.execute( t_c );
     loop
@@ -2043,6 +2043,13 @@ style="position:absolute;margin-left:35.25pt;margin-top:3pt;z-index:' || to_char
       t_cur_row := t_cur_row + t_r;
     end loop;
     dbms_sql.close_cursor( t_c );
+    for c in 1 .. t_col_cnt
+    loop
+      if t_widths.exists( c )
+      then
+        set_column_width( c, t_widths( c ), p_sheet => t_sheet );
+      end if;
+    end loop;
     if ( p_directory is not null and  p_filename is not null )
     then
       save( p_directory, p_filename );
